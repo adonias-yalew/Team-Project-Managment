@@ -1,24 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+import { AppShell } from "@/components/workspace/app-shell";
+import { PageHeader } from "@/components/workspace/primitives";
+import { TaskWorkspace } from "@/components/workspace/task-views";
+import { useStore } from "@/lib/store";
+import { CURRENT_USER_ID } from "@/lib/data";
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({ meta: [{ title: "Overview · WORKSPACE" }, { name: "description", content: "Overview in WORKSPACE." }, { property: "og:title", content: "Overview · WORKSPACE" }, { property: "og:description", content: "Overview in WORKSPACE." }] }),
+  component: Page,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function Page() {
+  const { tasks } = useStore();
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <AppShell>
+      <PageHeader title="Overview" subtitle="Your week at a glance." />
+      <TaskWorkspace tasks={tasks.filter((t) => t.assignees.includes(CURRENT_USER_ID))} />
+    </AppShell>
   );
 }

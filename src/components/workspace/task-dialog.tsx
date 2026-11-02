@@ -16,7 +16,7 @@ export function TaskDialog() {
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [status, setStatus] = useState<Status>("todo");
-  const [projectId, setProjectId] = useState(projects[0].id);
+  const [projectId, setProjectId] = useState(projects[0]!.id);
   const [due, setDue] = useState(iso(3));
   const [assignees, setAssignees] = useState<string[]>([CURRENT_USER_ID]);
 
