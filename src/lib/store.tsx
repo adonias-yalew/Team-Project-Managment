@@ -13,7 +13,7 @@ import {
 } from "./data";
 
 // In-memory session state only (resets on reload). This is the seam to swap for
-// Lovable Cloud queries/mutations later.
+// a remote data layer later.
 interface Store {
   tasks: Task[];
   addTask: (t: Omit<Task, "id" | "comments" | "activity">) => void;
