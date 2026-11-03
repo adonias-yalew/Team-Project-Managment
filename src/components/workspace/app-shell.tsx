@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { NavLink, useLocation } from "react-router-dom";
 import { useState, type ReactNode } from "react";
 import {
   BarChart3,
@@ -36,10 +36,12 @@ const nav = [
 ] as const;
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
-  const path = useRouterState({ select: (s) => s.location.pathname });
+  const location = useLocation();
+  const path = location.pathname;
   const { submissions } = useStore();
   const pending = submissions.filter((s) => s.status === "pending" && s.reviewerId === CURRENT_USER_ID).length;
   const me = memberById(CURRENT_USER_ID);
+
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 items-center gap-2.5 px-5">
@@ -52,25 +54,31 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         {nav.map(({ to, label, icon: Icon }) => {
           const active = to === "/" ? path === "/" : path.startsWith(to);
           return (
-            <Link
+            <NavLink
               key={to}
               to={to}
               onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-[13px] transition-colors",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-muted hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-              )}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-[13px] transition-colors",
+                  isActive || (to === "/" ? path === "/" : path.startsWith(to))
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-muted hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                )
+              }
             >
-              <Icon className={cn("size-4", active && "text-sidebar-primary")} />
-              <span className="flex-1">{label}</span>
-              {to === "/reviews" && pending > 0 && (
-                <span className="rounded bg-sidebar-primary px-1.5 text-[10px] font-semibold text-sidebar-primary-foreground">
-                  {pending}
-                </span>
+              {({ isActive }) => (
+                <>
+                  <Icon className={cn("size-4", isActive && "text-sidebar-primary")} />
+                  <span className="flex-1">{label}</span>
+                  {to === "/reviews" && pending > 0 && (
+                    <span className="rounded bg-sidebar-primary px-1.5 text-[10px] font-semibold text-sidebar-primary-foreground">
+                      {pending}
+                    </span>
+                  )}
+                </>
               )}
-            </Link>
+            </NavLink>
           );
         })}
       </nav>
@@ -90,6 +98,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const { setCreating } = useStore();
+
   return (
     <div className="min-h-screen">
       <aside className="fixed inset-y-0 left-0 hidden w-60 lg:block">

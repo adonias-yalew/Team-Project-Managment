@@ -1,5 +1,4 @@
-// Sample data and domain types. Replace these exports with Lovable Cloud queries later;
-// components consume the types only, so swapping the source won't require UI rewrites.
+// Sample data and domain types used by the task workspace.
 
 export type Priority = "urgent" | "high" | "medium" | "low";
 export type Status = "todo" | "in_progress" | "review" | "done";
