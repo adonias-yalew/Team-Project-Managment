@@ -1,46 +1,47 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useState, type ReactNode } from "react";
 import {
-  BarChart3,
   BookOpen,
-  CalendarCheck,
-  CheckSquare,
-  FolderKanban,
+  BriefcaseBusiness,
   LayoutDashboard,
+  LogOut,
   Menu,
   MessageSquareText,
-  Plus,
-  Search,
   Settings,
   Users,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
-import { CURRENT_USER_ID, memberById } from "@/lib/data";
-import { MemberAvatar } from "./primitives";
+import { useAuth } from "@/modules/auth/auth-context";
+import { toast } from "sonner";
 import { TaskDialog } from "./task-dialog";
 import { TaskDrawer } from "./task-drawer";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { to: "/", label: "Overview", icon: LayoutDashboard },
-  { to: "/my-tasks", label: "My Tasks", icon: CheckSquare },
-  { to: "/team-tasks", label: "Team Tasks", icon: Users },
-  { to: "/projects", label: "Projects", icon: FolderKanban },
-  { to: "/planner", label: "Daily Planner", icon: CalendarCheck },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/my-workspace", label: "My Workspace", icon: BriefcaseBusiness },
+  { to: "/workspaces", label: "Shared Workspaces", icon: Users },
   { to: "/learning", label: "Learning Paths", icon: BookOpen },
   { to: "/reviews", label: "Reviews & Feedback", icon: MessageSquareText },
-  { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const path = location.pathname;
-  const { submissions } = useStore();
-  const pending = submissions.filter((s) => s.status === "pending" && s.reviewerId === CURRENT_USER_ID).length;
-  const me = memberById(CURRENT_USER_ID);
+  const { user } = useAuth();
+  const fullName =
+    typeof user?.user_metadata?.["full_name"] === "string"
+      ? user.user_metadata["full_name"]
+      : (user?.email ?? "Account");
+  const initials = fullName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -71,11 +72,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                 <>
                   <Icon className={cn("size-4", isActive && "text-sidebar-primary")} />
                   <span className="flex-1">{label}</span>
-                  {to === "/reviews" && pending > 0 && (
-                    <span className="rounded bg-sidebar-primary px-1.5 text-[10px] font-semibold text-sidebar-primary-foreground">
-                      {pending}
-                    </span>
-                  )}
                 </>
               )}
             </NavLink>
@@ -84,20 +80,27 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
       <div className="m-3 flex items-center gap-3 rounded-lg border border-sidebar-border p-3">
         <span className="flex size-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-medium">
-          {me.initials}
+          {initials}
         </span>
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-medium">{me.name}</div>
-          <div className="truncate text-[11px] text-sidebar-muted">{me.role}</div>
+          <div className="truncate text-[13px] font-medium">{fullName}</div>
+          <div className="truncate text-[11px] text-sidebar-muted">{user?.email}</div>
         </div>
       </div>
     </div>
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  sampleContent = true,
+}: {
+  children: ReactNode;
+  sampleContent?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const { setCreating } = useStore();
+  const { user, signOut } = useAuth();
 
   return (
     <div className="min-h-screen">
@@ -112,27 +115,47 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Sheet>
       <div className="lg:pl-60">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur sm:px-8">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+          >
             <Menu className="size-5" />
           </Button>
-          <div className="relative max-w-sm flex-1">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              placeholder="Search tasks, projects, people…"
-              className="h-9 w-full rounded-md border bg-card pr-3 pl-9 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/30"
-            />
-          </div>
+          {sampleContent && <div className="flex-1" />}
           <div className="ml-auto flex items-center gap-3">
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus className="size-4" /> <span className="hidden sm:inline">New task</span>
-            </Button>
-            <MemberAvatar id={CURRENT_USER_ID} size="md" />
+            {sampleContent && (
+              <Button size="sm" onClick={() => setCreating(true)}>
+                <span className="hidden sm:inline">New task</span>
+              </Button>
+            )}
+            <button
+              className="rounded-md p-2 text-muted-foreground hover:bg-muted"
+              aria-label="Sign out"
+              title={user?.email}
+              onClick={() =>
+                void signOut().catch((error: unknown) =>
+                  toast.error(error instanceof Error ? error.message : "Could not sign out."),
+                )
+              }
+            >
+              <LogOut className="size-4" />
+            </button>
           </div>
         </header>
-        <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-8 sm:py-8 fade-up">{children}</main>
+        <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-8 sm:py-8 fade-up">
+          {sampleContent && (
+            <p className="mb-5 rounded-md border bg-card px-4 py-2.5 text-xs text-muted-foreground">
+              Sample dashboard content only. It is not connected to your private account data yet.
+            </p>
+          )}
+          {children}
+        </main>
       </div>
-      <TaskDialog />
-      <TaskDrawer />
+      {sampleContent && <TaskDialog />}
+      {sampleContent && <TaskDrawer />}
     </div>
   );
 }
