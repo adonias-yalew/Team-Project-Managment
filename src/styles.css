@@ -53,8 +53,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --shadow-card: var(--shadow-card);
-  --shadow-pop: var(--shadow-pop);
+  --shadow-card: 0 1px 3px oklch(0.22 0.02 255 / 0.05), 0 1px 2px oklch(0.22 0.02 255 / 0.04);
+  --shadow-pop: 0 12px 32px -12px oklch(0.22 0.02 255 / 0.18);
 }
 
 :root {
@@ -98,7 +98,7 @@
   --sidebar-accent-foreground: oklch(0.98 0.005 85);
   --sidebar-border: oklch(0.28 0.02 255);
   --sidebar-ring: oklch(0.72 0.09 160);
-  --shadow-card: 0 1px 2px oklch(0.22 0.02 255 / 0.04), 0 1px 1px oklch(0.22 0.02 255 / 0.03);
+  --shadow-card: 0 1px 3px oklch(0.22 0.02 255 / 0.05), 0 1px 2px oklch(0.22 0.02 255 / 0.04);
   --shadow-pop: 0 12px 32px -12px oklch(0.22 0.02 255 / 0.18);
 }
 
@@ -120,12 +120,34 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+@utility surface-hover {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+  &:hover {
+    border-color: color-mix(in oklch, var(--color-primary) 35%, var(--color-border));
+    box-shadow: 0 6px 20px -6px oklch(0.22 0.02 255 / 0.08);
+  }
+}
+
+@utility glass-card {
+  background-color: color-mix(in oklch, var(--color-card) 94%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
 }
 
 @utility eyebrow {
   font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-muted-foreground);
 }
