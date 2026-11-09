@@ -11,12 +11,14 @@ import {
   ExternalLink,
   LoaderCircle,
   Plus,
+  RotateCw,
   Settings2,
   Shield,
   Trash2,
   Users,
 } from "lucide-react";
 import { AppShell } from "@/components/workspace/app-shell";
+import { useStore } from "@/lib/store";
 import { useAuth } from "@/modules/auth/auth-context";
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -33,6 +35,7 @@ import {
   removeMember,
   respondToEmailInvitation,
   revokeInvitation,
+  resendInvitation,
   transferOwnership,
   updateWorkspace,
   uploadWorkspaceLogo,
@@ -364,7 +367,11 @@ export function CreateWorkspacePage() {
       });
       if (logoFile) {
         const avatarUrl = await uploadWorkspaceLogo(id, logoFile);
-        await updateWorkspace(id, { name: name.trim(), description: description.trim(), avatarUrl });
+        await updateWorkspace(id, {
+          name: name.trim(),
+          description: description.trim(),
+          avatarUrl,
+        });
       }
       navigate(`/workspaces/${id}`, { replace: true });
     } catch (cause) {
@@ -434,7 +441,10 @@ function LogoFileField({
   currentUrl?: string | null;
   onRemove?: () => void;
 }) {
-  const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : currentUrl), [file, currentUrl]);
+  const previewUrl = useMemo(
+    () => (file ? URL.createObjectURL(file) : currentUrl),
+    [file, currentUrl],
+  );
   useEffect(() => {
     if (!file) return;
     return () => URL.revokeObjectURL(previewUrl!);
@@ -455,10 +465,30 @@ function LogoFileField({
       </span>
       {(previewUrl || file) && (
         <div className="flex items-center gap-3">
-          {previewUrl && <img src={previewUrl} alt="Workspace logo preview" className="size-12 rounded-xl object-cover" />}
-          {file && <span className="min-w-0 truncate text-xs font-normal text-slate-600">{file.name}</span>}
-          {file && <button type="button" onClick={() => onChange(null)} className="text-xs text-slate-600 underline">Clear selection</button>}
-          {currentUrl && onRemove && !file && <button type="button" onClick={onRemove} className="text-xs text-rose-700 underline">Remove logo</button>}
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt="Workspace logo preview"
+              className="size-12 rounded-xl object-cover"
+            />
+          )}
+          {file && (
+            <span className="min-w-0 truncate text-xs font-normal text-slate-600">{file.name}</span>
+          )}
+          {file && (
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="text-xs text-slate-600 underline"
+            >
+              Clear selection
+            </button>
+          )}
+          {currentUrl && onRemove && !file && (
+            <button type="button" onClick={onRemove} className="text-xs text-rose-700 underline">
+              Remove logo
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -957,6 +987,24 @@ export function WorkspaceInvitationsPage() {
       setBusy(false);
     }
   }
+  async function resend(invite: Invite) {
+    setBusy(true);
+    setFormError("");
+    try {
+      await resendInvitation(invite.id);
+      setSuccessMessage(
+        `A new invitation link was emailed to ${invite.invited_email}. The previous email link has been invalidated.`,
+      );
+      await loadInvitations();
+    } catch (cause) {
+      setFormError(
+        cause instanceof Error ? cause.message : "Invitation email could not be resent.",
+      );
+      await loadInvitations();
+    } finally {
+      setBusy(false);
+    }
+  }
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(createdLink);
@@ -1177,14 +1225,25 @@ export function WorkspaceInvitationsPage() {
                           )}
                         </div>
                         {invite.status === "pending" && (
-                          <button
-                            disabled={busy}
-                            onClick={() => void revoke(invite)}
-                            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-800"
-                          >
-                            <Trash2 className="size-4" />
-                            Revoke
-                          </button>
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            {invite.invited_email && (
+                              <button
+                                disabled={busy}
+                                onClick={() => void resend(invite)}
+                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                              >
+                                <RotateCw className="size-4" /> Resend email
+                              </button>
+                            )}
+                            <button
+                              disabled={busy}
+                              onClick={() => void revoke(invite)}
+                              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-800"
+                            >
+                              <Trash2 className="size-4" />
+                              Revoke
+                            </button>
+                          </div>
                         )}
                       </article>
                     ))}
@@ -1201,6 +1260,7 @@ export function WorkspaceInvitationsPage() {
 
 export function MyInvitationsPage() {
   const navigate = useNavigate();
+  const { refreshWorkspaces, setActiveWorkspaceId } = useStore();
   const [invites, setInvites] = useState<Awaited<ReturnType<typeof listMyInvitations>>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1224,8 +1284,11 @@ export function MyInvitationsPage() {
     setError("");
     try {
       const workspaceId = await respondToEmailInvitation(id, action);
-      if (workspaceId) navigate(`/workspaces/${workspaceId}`, { replace: true });
-      else await load();
+      if (workspaceId) {
+        await refreshWorkspaces().catch(() => undefined);
+        setActiveWorkspaceId(workspaceId);
+        navigate(`/workspaces/${workspaceId}`, { replace: true });
+      } else await load();
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Your invitation response could not be saved.",
@@ -1324,11 +1387,7 @@ export function WorkspaceSettingsPage() {
     event.preventDefault();
     setMessageText("");
     if (!workspace) return;
-    if (
-      !name.trim() ||
-      name.trim().length > 120 ||
-      description.length > 1000
-    ) {
+    if (!name.trim() || name.trim().length > 120 || description.length > 1000) {
       setMessageText("Check the workspace name and description length.");
       return;
     }

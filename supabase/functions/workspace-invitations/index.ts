@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendBrevoInvitation } from "./brevo.ts";
+import { makeInviteUrl } from "./invite-url.ts";
 
 const corsHeaders = {
   "access-control-allow-origin": "*",
@@ -8,7 +9,14 @@ const corsHeaders = {
 };
 
 type Action =
-  "create" | "preview" | "accept" | "decline" | "accept_email" | "decline_email" | "revoke";
+  | "create"
+  | "resend"
+  | "preview"
+  | "accept"
+  | "decline"
+  | "accept_email"
+  | "decline_email"
+  | "revoke";
 type Body = {
   action?: Action;
   workspaceId?: string;
@@ -40,22 +48,6 @@ function createToken(): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
-
-function makeInviteUrl(token: string): string | null {
-  const configured = Deno.env.get("APP_BASE_URL");
-  if (!configured) return null;
-  try {
-    const url = new URL(configured);
-    if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1")
-      return null;
-    url.pathname = "/invitations/accept";
-    url.search = "?token=" + encodeURIComponent(token);
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return null;
-  }
 }
 
 Deno.serve(async (request) => {
@@ -122,15 +114,28 @@ Deno.serve(async (request) => {
   const action = body.action;
   if (
     !action ||
-    !["create", "preview", "accept", "decline", "accept_email", "decline_email", "revoke"].includes(
-      action,
-    )
+    ![
+      "create",
+      "resend",
+      "preview",
+      "accept",
+      "decline",
+      "accept_email",
+      "decline_email",
+      "revoke",
+    ].includes(action)
   ) {
     return respond(400, { error: "Invalid request." });
   }
 
   const rateAction =
-    action === "accept_email" ? "accept" : action === "decline_email" ? "decline" : action;
+    action === "resend"
+      ? "create"
+      : action === "accept_email"
+        ? "accept"
+        : action === "decline_email"
+          ? "decline"
+          : action;
   const { data: allowed, error: rateError } = await adminClient.rpc(
     "_consume_workspace_invitation",
     {
@@ -184,7 +189,7 @@ Deno.serve(async (request) => {
     if (maxUses < 1 || maxUses > 100)
       return respond(400, { error: "Link use limit must be between 1 and 100." });
     const rawToken = createToken();
-    const link = makeInviteUrl(rawToken);
+    const link = makeInviteUrl(Deno.env.get("APP_BASE_URL"), rawToken);
     if (!link)
       return respond(503, { error: "Invitation links are not configured for this deployment." });
 
@@ -262,6 +267,90 @@ Deno.serve(async (request) => {
       });
     }
     return respond(200, { invitationId, link: null, delivery: "sent" });
+  }
+
+  if (action === "resend") {
+    if (!body.invitationId) return respond(400, { error: "Choose an invitation to resend." });
+    if (!user.email_confirmed_at)
+      return respond(403, { error: "Verify your email address before resending invitations." });
+    const brevoApiKey = Deno.env.get("BREVO_API_KEY");
+    const senderEmail = Deno.env.get("BREVO_SENDER_EMAIL");
+    const senderName = Deno.env.get("BREVO_SENDER_NAME");
+    if (!brevoApiKey || !senderEmail || !senderName)
+      return respond(503, { error: "Brevo invitation email is not configured." });
+    const rawToken = createToken();
+    const link = makeInviteUrl(Deno.env.get("APP_BASE_URL"), rawToken);
+    if (!link)
+      return respond(503, { error: "Invitation links are not configured for this deployment." });
+    const { data: prepared, error: prepareError } = await adminClient.rpc(
+      "_prepare_workspace_invitation_resend",
+      {
+        p_invitation_id: body.invitationId,
+        p_actor_id: user.id,
+        p_token_hash: await hashToken(rawToken),
+      },
+    );
+    if (prepareError || !prepared)
+      return respond(400, {
+        error:
+          "This invitation cannot be resent yet. It may be sending; wait a few minutes, refresh its status, and retry if it is still pending.",
+      });
+    const { data: detailRows, error: detailError } = await adminClient.rpc(
+      "_get_workspace_invitation_email_details",
+      {
+        p_invitation_id: body.invitationId,
+        p_actor_id: user.id,
+      },
+    );
+    const details = detailRows?.[0];
+    if (detailError || !details) {
+      await adminClient.rpc("_set_workspace_invitation_delivery_status", {
+        p_invitation_id: body.invitationId,
+        p_status: "failed",
+      });
+      return respond(502, {
+        error:
+          "The invitation email could not be prepared. Its delivery status is marked as failed.",
+      });
+    }
+    const delivered = await sendBrevoInvitation({
+      apiKey: brevoApiKey,
+      senderEmail,
+      senderName,
+      to: details.invitee_email,
+      workspaceName: details.workspace_name,
+      inviterName: details.inviter_name,
+      role: details.intended_role,
+      expiresAt: details.expires_at,
+      link,
+    });
+    if (!delivered) {
+      const { error: statusError } = await adminClient.rpc(
+        "_set_workspace_invitation_delivery_status",
+        {
+          p_invitation_id: body.invitationId,
+          p_status: "failed",
+        },
+      );
+      return respond(502, {
+        error: statusError
+          ? "The email was not confirmed and its failed status could not be saved; refresh invitation history."
+          : "Brevo did not confirm the email. The invitation is marked failed.",
+      });
+    }
+    const { data: markedSent, error: statusError } = await adminClient.rpc(
+      "_set_workspace_invitation_delivery_status",
+      {
+        p_invitation_id: body.invitationId,
+        p_status: "sent",
+      },
+    );
+    if (statusError || !markedSent)
+      return respond(502, {
+        error:
+          "Brevo accepted the message, but delivery status could not be saved. Refresh invitation history.",
+      });
+    return respond(200, { invitationId: body.invitationId, delivery: "sent" });
   }
 
   if (action === "accept_email" || action === "decline_email") {

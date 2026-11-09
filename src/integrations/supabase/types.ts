@@ -107,6 +107,126 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+      projects: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          name: string;
+          description: string;
+          status: "active" | "completed" | "archived";
+          due_date: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          name: string;
+          description?: string;
+          status?: "active" | "completed" | "archived";
+          due_date?: string | null;
+          created_by?: string;
+        };
+        Update: {
+          name?: string;
+          description?: string;
+          status?: "active" | "completed" | "archived";
+          due_date?: string | null;
+        };
+        Relationships: [];
+      };
+      project_members: {
+        Row: {
+          project_id: string;
+          workspace_id: string;
+          user_id: string;
+          added_by: string;
+          created_at: string;
+        };
+        Insert: { project_id: string; workspace_id: string; user_id: string; added_by?: string };
+        Update: never;
+        Relationships: [];
+      };
+      tasks: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          project_id: string | null;
+          title: string;
+          description: string;
+          status: "todo" | "in_progress" | "review" | "done";
+          priority: "urgent" | "high" | "medium" | "low";
+          due_date: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          project_id?: string | null;
+          title: string;
+          description?: string;
+          status?: "todo" | "in_progress" | "review" | "done";
+          priority?: "urgent" | "high" | "medium" | "low";
+          due_date?: string | null;
+          created_by?: string;
+        };
+        Update: {
+          project_id?: string | null;
+          title?: string;
+          description?: string;
+          status?: "todo" | "in_progress" | "review" | "done";
+          priority?: "urgent" | "high" | "medium" | "low";
+          due_date?: string | null;
+        };
+        Relationships: [];
+      };
+      task_assignees: {
+        Row: {
+          task_id: string;
+          workspace_id: string;
+          user_id: string;
+          assigned_by: string;
+          created_at: string;
+        };
+        Insert: { task_id: string; workspace_id: string; user_id: string; assigned_by?: string };
+        Update: never;
+        Relationships: [];
+      };
+      task_comments: {
+        Row: {
+          id: string;
+          task_id: string;
+          workspace_id: string;
+          author_id: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          workspace_id: string;
+          author_id?: string;
+          body: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      task_activity: {
+        Row: {
+          id: number;
+          task_id: string;
+          workspace_id: string;
+          actor_id: string | null;
+          event: string;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -148,6 +268,20 @@ export interface Database {
         Args: { p_invitation_id: string };
         Returns: undefined;
       };
+      set_task_assignees: { Args: { p_task_id: string; p_user_ids: string[] }; Returns: undefined };
+      create_workspace_task: {
+        Args: {
+          p_workspace_id: string;
+          p_project_id: string | null;
+          p_title: string;
+          p_description: string;
+          p_status: "todo" | "in_progress" | "review" | "done";
+          p_priority: "urgent" | "high" | "medium" | "low";
+          p_due_date: string | null;
+          p_assignee_ids: string[];
+        };
+        Returns: string;
+      };
       list_workspace_invitations: {
         Args: { p_workspace_id: string };
         Returns: {
@@ -183,6 +317,9 @@ export interface Database {
       workspace_type: "personal" | "team";
       workspace_role: "owner" | "admin" | "member";
       workspace_invitation_response: "accepted" | "declined";
+      task_status: "todo" | "in_progress" | "review" | "done";
+      task_priority: "urgent" | "high" | "medium" | "low";
+      project_status: "active" | "completed" | "archived";
     };
     CompositeTypes: Record<string, never>;
   };

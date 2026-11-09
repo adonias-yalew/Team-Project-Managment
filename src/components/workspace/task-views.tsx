@@ -12,24 +12,55 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useStore } from "@/lib/store";
-import { isOverdue, members, projectById, projects, statusLabel, type Status, type Task } from "@/lib/data";
-import { AvatarStack, PriorityBadge, StatusBadge, fmtDate } from "./primitives";
+import { isOverdue, statusLabel, type Status } from "@/lib/data";
+import type { WorkspaceTask } from "@/lib/store";
+import { PriorityBadge, StatusBadge, fmtDate } from "./primitives";
 import { cn } from "@/lib/utils";
 
 const columns: { id: Status; title: string; color: string; dot: string; countBg: string }[] = [
-  { id: "todo", title: "To do", color: "border-border/80", dot: "bg-muted-foreground/60", countBg: "bg-muted" },
-  { id: "in_progress", title: "In progress", color: "border-info/30", dot: "bg-info", countBg: "bg-info/10 text-info" },
-  { id: "review", title: "In review", color: "border-warning/30", dot: "bg-warning", countBg: "bg-warning/15 text-warning" },
-  { id: "done", title: "Completed", color: "border-primary/30", dot: "bg-primary", countBg: "bg-primary/10 text-primary" },
+  {
+    id: "todo",
+    title: "To do",
+    color: "border-border/80",
+    dot: "bg-muted-foreground/60",
+    countBg: "bg-muted",
+  },
+  {
+    id: "in_progress",
+    title: "In progress",
+    color: "border-info/30",
+    dot: "bg-info",
+    countBg: "bg-info/10 text-info",
+  },
+  {
+    id: "review",
+    title: "In review",
+    color: "border-warning/30",
+    dot: "bg-warning",
+    countBg: "bg-warning/15 text-warning",
+  },
+  {
+    id: "done",
+    title: "Completed",
+    color: "border-primary/30",
+    dot: "bg-primary",
+    countBg: "bg-primary/10 text-primary",
+  },
 ];
 
-function TaskCard({ t }: { t: Task }) {
-  const { setOpenTaskId } = useStore();
-  const project = projectById(t.projectId);
+function TaskCard({ t }: { t: WorkspaceTask }) {
+  const { setOpenTaskId, projects, members } = useStore();
+  const project = projects.find((p) => p.id === t.projectId);
   const overdue = isOverdue(t);
 
   return (
@@ -44,7 +75,7 @@ function TaskCard({ t }: { t: Task }) {
     >
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1 rounded bg-secondary/80 px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground">
-          {project?.code || "PRJ"} · {project?.name}
+          {project?.name ?? "No project"}
         </span>
         <PriorityBadge p={t.priority} />
       </div>
@@ -60,11 +91,32 @@ function TaskCard({ t }: { t: Task }) {
       )}
 
       <div className="mt-3.5 flex items-center justify-between border-t border-border/50 pt-2.5 text-xs">
-        <AvatarStack ids={t.assignees} size="xs" max={3} />
+        <div className="flex -space-x-1.5" aria-label="Task assignees">
+          {t.assignees.slice(0, 3).map((id) => {
+            const member = members.find((candidate) => candidate.id === id);
+            return (
+              <span
+                key={id}
+                title={member?.name}
+                className="inline-flex size-5 items-center justify-center rounded-full bg-secondary text-[8px] font-medium text-secondary-foreground ring-2 ring-card"
+              >
+                {member?.initials ?? "?"}
+              </span>
+            );
+          })}
+          {t.assignees.length > 3 && (
+            <span className="inline-flex size-5 items-center justify-center rounded-full bg-muted text-[8px] ring-2 ring-card">
+              +{t.assignees.length - 3}
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center gap-2.5 text-[11px]">
           {t.comments.length > 0 && (
-            <span className="flex items-center gap-1 text-muted-foreground" title={`${t.comments.length} comments`}>
+            <span
+              className="flex items-center gap-1 text-muted-foreground"
+              title={`${t.comments.length} comments`}
+            >
               <MessageSquare className="size-3" />
               <span>{t.comments.length}</span>
             </span>
@@ -87,7 +139,7 @@ function TaskCard({ t }: { t: Task }) {
   );
 }
 
-function Board({ tasks }: { tasks: Task[] }) {
+function Board({ tasks }: { tasks: WorkspaceTask[] }) {
   const { setStatus, setCreating } = useStore();
   const [over, setOver] = useState<Status | null>(null);
 
@@ -121,7 +173,9 @@ function Board({ tasks }: { tasks: Task[] }) {
             <div className="mb-3 flex items-center justify-between px-1.5 py-1">
               <div className="flex items-center gap-2">
                 <span className={cn("size-2 rounded-full", col.dot)} />
-                <span className="text-xs font-semibold text-foreground tracking-tight">{col.title}</span>
+                <span className="text-xs font-semibold text-foreground tracking-tight">
+                  {col.title}
+                </span>
               </div>
               <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", col.countBg)}>
                 {items.length}
@@ -140,7 +194,9 @@ function Board({ tasks }: { tasks: Task[] }) {
                     <CheckCircle2 className="size-4" />
                   </div>
                   <span>No tasks in this lane</span>
-                  <span className="text-[11px] text-muted-foreground/70 mt-0.5">Drag tasks here</span>
+                  <span className="text-[11px] text-muted-foreground/70 mt-0.5">
+                    Drag tasks here
+                  </span>
                 </div>
               )}
             </div>
@@ -162,8 +218,8 @@ function Board({ tasks }: { tasks: Task[] }) {
   );
 }
 
-function ListView({ tasks }: { tasks: Task[] }) {
-  const { setOpenTaskId } = useStore();
+function ListView({ tasks }: { tasks: WorkspaceTask[] }) {
+  const { setOpenTaskId, projects, members } = useStore();
 
   return (
     <div className="surface overflow-hidden divide-y divide-border/60">
@@ -178,7 +234,7 @@ function ListView({ tasks }: { tasks: Task[] }) {
 
       <div className="divide-y divide-border/50">
         {tasks.map((t) => {
-          const project = projectById(t.projectId);
+          const project = projects.find((p) => p.id === t.projectId);
           const overdue = isOverdue(t);
 
           return (
@@ -203,7 +259,7 @@ function ListView({ tasks }: { tasks: Task[] }) {
 
               <div className="text-xs text-muted-foreground truncate">
                 <span className="inline-flex items-center rounded bg-secondary/80 px-1.5 py-0.5 font-medium text-secondary-foreground">
-                  {project?.code || "PRJ"}
+                  {project?.name || "—"}
                 </span>{" "}
                 <span className="hidden xl:inline">{project?.name}</span>
               </div>
@@ -216,8 +272,19 @@ function ListView({ tasks }: { tasks: Task[] }) {
                 <PriorityBadge p={t.priority} />
               </div>
 
-              <div>
-                <AvatarStack ids={t.assignees} size="xs" max={2} />
+              <div className="flex -space-x-1.5">
+                {t.assignees.slice(0, 2).map((id) => {
+                  const member = members.find((candidate) => candidate.id === id);
+                  return (
+                    <span
+                      key={id}
+                      title={member?.name}
+                      className="inline-flex size-5 items-center justify-center rounded-full bg-secondary text-[8px] ring-2 ring-card"
+                    >
+                      {member?.initials ?? "?"}
+                    </span>
+                  );
+                })}
               </div>
 
               <div className="text-right">
@@ -239,7 +306,9 @@ function ListView({ tasks }: { tasks: Task[] }) {
           <div className="p-12 text-center">
             <Filter className="mx-auto size-8 text-muted-foreground/40 mb-2" />
             <div className="text-sm font-medium">No tasks found</div>
-            <p className="mt-1 text-xs text-muted-foreground">Try adjusting your filters or search terms.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Try adjusting your filters or search terms.
+            </p>
           </div>
         )}
       </div>
@@ -252,11 +321,12 @@ export function TaskWorkspace({
   showAssigneeFilter,
   defaultFilterPreset,
 }: {
-  tasks: Task[];
+  tasks: WorkspaceTask[];
   showAssigneeFilter?: boolean;
   defaultFilterPreset?: "all" | "in_progress" | "urgent" | "due_soon";
 }) {
   const [view, setView] = useState<"board" | "list">("board");
+  const { projects, members, loading, error } = useStore();
   const [project, setProject] = useState("all");
   const [priority, setPriority] = useState("all");
   const [status, setStatusFilter] = useState("all");
@@ -273,13 +343,21 @@ export function TaskWorkspace({
         !search.trim() ||
         t.title.toLowerCase().includes(search.toLowerCase()) ||
         t.description.toLowerCase().includes(search.toLowerCase()) ||
-        projectById(t.projectId)?.name.toLowerCase().includes(search.toLowerCase());
+        projects
+          .find((p) => p.id === t.projectId)
+          ?.name.toLowerCase()
+          .includes(search.toLowerCase());
 
       return matchProject && matchPriority && matchStatus && matchAssignee && matchSearch;
     });
-  }, [tasks, project, priority, status, assignee, search]);
+  }, [tasks, projects, project, priority, status, assignee, search]);
 
-  const hasActiveFilters = project !== "all" || priority !== "all" || status !== "all" || assignee !== "all" || search !== "";
+  const hasActiveFilters =
+    project !== "all" ||
+    priority !== "all" ||
+    status !== "all" ||
+    assignee !== "all" ||
+    search !== "";
 
   const resetFilters = () => {
     setProject("all");
@@ -300,7 +378,9 @@ export function TaskWorkspace({
               onClick={() => setView("board")}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                view === "board" ? "bg-secondary text-secondary-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
+                view === "board"
+                  ? "bg-secondary text-secondary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <LayoutGrid className="size-3.5" /> Board
@@ -309,7 +389,9 @@ export function TaskWorkspace({
               onClick={() => setView("list")}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                view === "list" ? "bg-secondary text-secondary-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
+                view === "list"
+                  ? "bg-secondary text-secondary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <List className="size-3.5" /> List
@@ -386,13 +468,29 @@ export function TaskWorkspace({
             />
           </div>
           <span className="shrink-0 rounded-md border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-xs">
-            <span className="font-semibold text-foreground">{filtered.length}</span> {filtered.length === 1 ? "task" : "tasks"}
+            <span className="font-semibold text-foreground">{filtered.length}</span>{" "}
+            {filtered.length === 1 ? "task" : "tasks"}
           </span>
         </div>
       </div>
 
       {/* Render View */}
-      {view === "board" ? <Board tasks={filtered} /> : <ListView tasks={filtered} />}
+      {error ? (
+        <div
+          className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+          role="alert"
+        >
+          {error}
+        </div>
+      ) : loading ? (
+        <div className="surface p-10 text-center text-sm text-muted-foreground" role="status">
+          Loading workspace tasks…
+        </div>
+      ) : view === "board" ? (
+        <Board tasks={filtered} />
+      ) : (
+        <ListView tasks={filtered} />
+      )}
     </div>
   );
 }

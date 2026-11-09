@@ -4,6 +4,7 @@ import { ArrowLeft, Check, LoaderCircle, ShieldCheck, Users } from "lucide-react
 import { AppShell } from "@/components/workspace/app-shell";
 import { invitationAction, type InvitationPreview } from "@/modules/workspaces/workspace-api";
 import { Notice } from "@/modules/workspaces/workspace-ui";
+import { useStore } from "@/lib/store";
 
 const actionClass =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-55";
@@ -13,6 +14,7 @@ const mutedClass =
 export function InvitationAcceptPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { refreshWorkspaces, setActiveWorkspaceId } = useStore();
   const token = new URLSearchParams(location.search).get("token") ?? "";
   const [invitation, setInvitation] = useState<InvitationPreview | null>(null);
   const [error, setError] = useState("");
@@ -40,9 +42,11 @@ export function InvitationAcceptPage() {
     setError("");
     try {
       const result = await invitationAction(action, token);
-      if (action === "accept" && "workspaceId" in result)
+      if (action === "accept" && "workspaceId" in result) {
+        await refreshWorkspaces().catch(() => undefined);
+        setActiveWorkspaceId(result.workspaceId);
         navigate(`/workspaces/${result.workspaceId}`, { replace: true });
-      else navigate("/workspaces", { replace: true });
+      } else navigate("/workspaces", { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Your response could not be saved.");
     } finally {

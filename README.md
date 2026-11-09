@@ -1,6 +1,6 @@
 # Workspace
 
-A React, TypeScript, and Vite workspace dashboard with Supabase Auth and a PostgreSQL privacy foundation. React Router remains the application router. The current task, planner, project, learning, review, and analytics screens use shared in-memory sample data; they are not connected to user-specific database records yet.
+A React, TypeScript, and Vite workspace dashboard with Supabase Auth and a PostgreSQL privacy foundation. React Router remains the application router. Projects, tasks, assignees, comments, activity, planning, reviews, analytics, and the overview use persistent records scoped to the selected workspace. Learning Paths remains a product placeholder. Workspace membership and project/task access are separate concepts: members can see their workspace's records, while project creation and management are limited to Owners and Admins.
 
 ## Local development
 
@@ -22,11 +22,11 @@ Set `.env.local` using the local Supabase values described below. The dashboard 
 4. Run `npx supabase db reset` to apply migrations, then `npx supabase test db` to execute the RLS tests.
 5. For a hosted project, link the project with the CLI, review the pending migration, then use `npx supabase db push`. Never put a service-role or secret key in a `VITE_` variable.
 
-Email confirmations are enabled in `supabase/config.toml`. For hosted projects, configure the SMTP provider, site URL, and allowed redirect URLs in Supabase Auth URL configuration. Allow the app's `/` confirmation redirect and `/reset-password` recovery redirect for each environment.
+Email confirmations are enabled in `supabase/config.toml`. For hosted projects, configure the SMTP provider, site URL, and allowed redirect URLs in Supabase Auth URL configuration. Allow the app's root confirmation redirect, `/reset-password` recovery redirect, and `/invitations/accept*` invitation return URL for each environment.
 
 ## Database and authentication
 
-The migrations in `supabase/migrations` create profiles, workspaces, memberships, invitations, RLS policies, and an Auth user trigger. Phase 1 creates the profile and one private personal workspace with an owner membership in the same transaction and backfills existing users. Phase 2 is additive: it adds team workspace details, member/role operations, invitation responses, and trusted invitation endpoints. Auth owns password handling, sessions, verification, recovery, and password hashing.
+The migrations in `supabase/migrations` create profiles, workspaces, memberships, invitations, projects, tasks, comments, activity, RLS policies, and an Auth user trigger. Phase 1 creates the profile and one private personal workspace with an owner membership in the same transaction and backfills existing users. Phase 2 adds team workspace details, member/role operations, invitation responses, and trusted invitation endpoints. The November 9 migrations add workspace-scoped project/task data and invitation resend with token rotation. Auth owns password handling, sessions, verification, recovery, and password hashing.
 
 The typed client is in `src/integrations/supabase`; the Auth provider and pages are in `src/modules/auth`. `Database` types are maintained alongside the schema. Update these types whenever a migration changes the schema.
 
@@ -59,7 +59,7 @@ Review `supabase/migrations/20261103000200_workspaces_invitations.sql` before ap
    - Password: the Brevo SMTP key
    - Sender email: your verified sender address
    - Sender name: `Flowtask`
-3. Keep email confirmations enabled, secure email change enabled (both current and new addresses confirm), `mailer_autoconfirm=false`, and the current Site URL and redirect allow-list. Keep Supabase's confirmation and recovery templates using `{{ .ConfirmationURL }}`. Supabase Auth continues generating and validating its own tokens. Do not use the Brevo API key as the SMTP password.
+3. Keep email confirmations enabled, secure email change enabled (both current and new addresses confirm), `mailer_autoconfirm=false`, and the current Site URL and redirect allow-list. Allow root, `/reset-password`, and `/invitations/accept*` redirects on the configured app origins. Keep Supabase's confirmation and recovery templates using `{{ .ConfirmationURL }}`. Supabase Auth continues generating and validating its own tokens. Do not use the Brevo API key as the SMTP password.
 
 ### Workspace invitation emails
 
@@ -67,7 +67,7 @@ Review `supabase/migrations/20261103000200_workspaces_invitations.sql` before ap
 2. Supabase injects `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` into the Edge Function runtime. Never put any of these credentials in a `VITE_` variable or frontend environment file.
 3. After approval, apply the Phase 2 migration and deploy with `npx supabase functions deploy workspace-invitations`.
 
-Disable click tracking/link rewriting for Auth emails so Supabase confirmation links remain intact. Configure SPF, DKIM, and DMARC in Brevo, then test signup confirmation, password reset, email change (confirmations to both addresses), invitation send, failed-send status, and link acceptance. See the [Supabase Custom SMTP guide](https://supabase.com/docs/guides/auth/auth-smtp), [Supabase Edge Function secrets guide](https://supabase.com/docs/guides/functions/secrets), [Brevo SMTP setup](https://help.brevo.com/hc/en-us/articles/7924908994450-Send-transactional-emails-using-Brevo-SMTP), and [Brevo transactional email API](https://developers.brevo.com/reference/send-transac-email).
+Invitation links use the app origin configured by `APP_BASE_URL`; set it to the public HTTPS origin with no path suffix. Do not set it to localhost in production. The auth gate preserves the tokenized acceptance route through sign-in, sign-up, and email confirmation. Disable click tracking/link rewriting for Auth emails so Supabase confirmation links remain intact. Configure SPF, DKIM, and DMARC in Brevo, then test signup confirmation, password reset, email change (confirmations to both addresses), invitation send, failed-send status, resend, and link acceptance. See the [Supabase Custom SMTP guide](https://supabase.com/docs/guides/auth/auth-smtp), [Supabase Edge Function secrets guide](https://supabase.com/docs/guides/functions/secrets), [Brevo SMTP setup](https://help.brevo.com/hc/en-us/articles/7924908994450-Send-transactional-emails-using-Brevo-SMTP), and [Brevo transactional email API](https://developers.brevo.com/reference/send-transac-email).
 
 ## Abuse prevention configuration
 
@@ -93,6 +93,6 @@ npx supabase db reset
 npx supabase test db
 ```
 
-## Phase 1 limits
+## Current product scope
 
-The existing task/project product screens remain sample-data views held in browser memory, not private user data. They are visible to any signed-in account and do not write to Supabase. Task/project CRUD, project memberships, workspace file storage, and outbound invitation email are not part of Phase 2. Do not use sample screen content for real private work until later data-access phases replace it with RLS-protected queries.
+Projects, tasks, task assignments, comments, status/priority changes, and activity are stored in Supabase. The active workspace selector scopes these screens, and task creation plus assignment updates are checked by database functions. Project CRUD is limited to Owners and Admins; workspace members can create and update tasks. Planner, Reviews, Analytics, and Overview are derived from these records. Learning Paths remains a placeholder. Hosted use still requires reviewing and applying pending migrations, configuring Supabase Auth and Brevo, and deploying the invitation Edge Function as described above.

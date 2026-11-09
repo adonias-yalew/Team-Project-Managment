@@ -3,7 +3,11 @@ import { useState, type ReactNode } from "react";
 import {
   BookOpen,
   BriefcaseBusiness,
+  CalendarDays,
+  ChartNoAxesCombined,
+  FolderKanban,
   LayoutDashboard,
+  ListTodo,
   LogOut,
   Menu,
   MessageSquareText,
@@ -21,6 +25,11 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/my-tasks", label: "My Tasks", icon: ListTodo },
+  { to: "/team-tasks", label: "Team Tasks", icon: ListTodo },
+  { to: "/projects", label: "Projects", icon: FolderKanban },
+  { to: "/planner", label: "Planner", icon: CalendarDays },
+  { to: "/analytics", label: "Analytics", icon: ChartNoAxesCombined },
   { to: "/my-workspace", label: "My Workspace", icon: BriefcaseBusiness },
   { to: "/workspaces", label: "Shared Workspaces", icon: Users },
   { to: "/learning", label: "Learning Paths", icon: BookOpen },
@@ -99,7 +108,7 @@ export function AppShell({
   sampleContent?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const { setCreating } = useStore();
+  const { setCreating, workspaces, activeWorkspaceId, setActiveWorkspaceId } = useStore();
   const { user, signOut } = useAuth();
 
   return (
@@ -124,8 +133,28 @@ export function AppShell({
           >
             <Menu className="size-5" />
           </Button>
-          {sampleContent && <div className="flex-1" />}
+          <div className="flex-1" />
           <div className="ml-auto flex items-center gap-3">
+            {workspaces.length > 1 && (
+              <label className="sr-only" htmlFor="active-workspace">
+                Active workspace
+              </label>
+            )}
+            {workspaces.length > 1 && (
+              <select
+                id="active-workspace"
+                aria-label="Active workspace"
+                value={activeWorkspaceId}
+                onChange={(event) => setActiveWorkspaceId(event.currentTarget.value)}
+                className="h-9 max-w-48 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground"
+              >
+                {workspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name}
+                  </option>
+                ))}
+              </select>
+            )}
             {sampleContent && (
               <Button size="sm" onClick={() => setCreating(true)}>
                 <span className="hidden sm:inline">New task</span>
@@ -145,14 +174,7 @@ export function AppShell({
             </button>
           </div>
         </header>
-        <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-8 sm:py-8 fade-up">
-          {sampleContent && (
-            <p className="mb-5 rounded-md border bg-card px-4 py-2.5 text-xs text-muted-foreground">
-              Sample dashboard content only. It is not connected to your private account data yet.
-            </p>
-          )}
-          {children}
-        </main>
+        <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-8 sm:py-8 fade-up">{children}</main>
       </div>
       {sampleContent && <TaskDialog />}
       {sampleContent && <TaskDrawer />}

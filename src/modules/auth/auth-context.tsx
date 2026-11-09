@@ -12,6 +12,7 @@ interface AuthContextValue {
     fullName: string,
     email: string,
     password: string,
+    emailRedirectTo?: string,
   ) => Promise<{ needsEmailVerification: boolean }>;
   signOut: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
@@ -86,13 +87,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         raise(error);
       },
-      signUp: async (fullName, email, password) => {
+      signUp: async (fullName, email, password, emailRedirectTo) => {
         const supabase = await getSupabaseClient();
         if (!supabase) throw missingConfig();
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName }, emailRedirectTo: window.location.origin + "/" },
+          options: {
+            data: { full_name: fullName },
+            emailRedirectTo: emailRedirectTo ?? window.location.origin + "/",
+          },
         });
         raise(error);
         return { needsEmailVerification: !data.session };

@@ -284,6 +284,32 @@ type InvitationFunctionResponse = {
   ok?: true;
 };
 
+export async function invitationErrorMessage(cause: unknown, fallback: string): Promise<string> {
+  if (
+    cause &&
+    typeof cause === "object" &&
+    "context" in cause &&
+    cause.context instanceof Response
+  ) {
+    const payload = await cause.context
+      .clone()
+      .json()
+      .catch(() => null);
+    if (payload && typeof payload.error === "string") return payload.error;
+  }
+  if (
+    cause &&
+    typeof cause === "object" &&
+    "message" in cause &&
+    typeof cause.message === "string"
+  ) {
+    return cause.message === "Edge Function returned a non-2xx status code"
+      ? fallback
+      : cause.message;
+  }
+  return fallback;
+}
+
 export async function invitationAction(
   action: "preview" | "accept" | "decline",
   token: string,
@@ -293,7 +319,9 @@ export async function invitationAction(
     action,
     token,
   });
-  if (error || !data) throw new Error(error?.message ?? "Invitation service is unavailable.");
+  if (error)
+    throw new Error(await invitationErrorMessage(error, "Invitation service is unavailable."));
+  if (!data) throw new Error("Invitation service is unavailable.");
   if (data.error) throw new Error(data.error as string);
   if (action === "preview") return data.invitation as InvitationPreview;
   return data as { workspaceId: string } | { ok: true };
@@ -305,7 +333,22 @@ export async function revokeInvitation(invitationId: string): Promise<void> {
     action: "revoke",
     invitationId,
   });
-  if (error || data?.error) throw new Error(data?.error ?? "The invitation could not be revoked.");
+  if (error)
+    throw new Error(await invitationErrorMessage(error, "The invitation could not be revoked."));
+  if (data?.error) throw new Error(data.error);
+}
+
+export async function resendInvitation(invitationId: string): Promise<void> {
+  const supabase = await client();
+  const { data, error } = await invokeInvitation<InvitationFunctionResponse>(supabase, {
+    action: "resend",
+    invitationId,
+  });
+  if (error)
+    throw new Error(
+      await invitationErrorMessage(error, "The invitation email could not be resent."),
+    );
+  if (data?.error) throw new Error(data.error);
 }
 
 export async function respondToEmailInvitation(
@@ -317,6 +360,8 @@ export async function respondToEmailInvitation(
     action: response === "accept" ? "accept_email" : "decline_email",
     invitationId,
   });
-  if (error || data?.error) throw new Error(data?.error ?? "The invitation could not be updated.");
+  if (error)
+    throw new Error(await invitationErrorMessage(error, "The invitation could not be updated."));
+  if (data?.error) throw new Error(data.error);
   return typeof data?.workspaceId === "string" ? data.workspaceId : null;
 }

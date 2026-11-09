@@ -168,10 +168,12 @@ function AuthForm({ mode }: { mode: "login" | "signup" }) {
           replace: true,
         });
       } else {
-        const result = await signUp(fullName!, email, password);
+        const returnTo = safeReturnTo((location.state as { from?: unknown } | null)?.from);
+        const redirect = returnTo === "/" ? undefined : window.location.origin + returnTo;
+        const result = await signUp(fullName!, email, password, redirect);
         if (result.needsEmailVerification)
           setNotice("Check your email for a verification link to finish creating your account.");
-        else navigate("/", { replace: true });
+        else navigate(returnTo, { replace: true });
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We could not complete that request.");
@@ -259,6 +261,7 @@ function AuthForm({ mode }: { mode: "login" | "signup" }) {
         <Link
           className="font-medium text-primary underline-offset-4 hover:underline"
           to={mode === "login" ? "/signup" : "/login"}
+          state={location.state}
         >
           {mode === "login" ? "Create an account" : "Sign in"}
         </Link>
