@@ -241,4 +241,3 @@ create policy task_activity_select_member on public.task_activity for select to 
 using (private.is_workspace_member(workspace_id));
 revoke all on public.task_activity from public, anon, authenticated;
 grant select on public.task_activity to authenticated;
-
